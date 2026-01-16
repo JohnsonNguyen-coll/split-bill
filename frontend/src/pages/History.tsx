@@ -14,7 +14,7 @@ interface Bill {
   splitType: number;
   deadline: bigint;
   createdAt: bigint;
-  status: number; // 0: ACTIVE, 1: SETTLED, 2: CANCELLED
+  status: number; // 0: ACTIVE, 1: SETTLED, 2: CANCELLED (converted to number)
   settledAt: bigint;
   participants: any[];
   userShare?: bigint;
@@ -47,8 +47,11 @@ const History = () => {
         billIds.map(async (id: bigint) => {
           try {
             const bill = await contract.getBill(id);
+            
             // Only load settled or cancelled bills
-            if (bill.status === 0) return null;
+            if (Number(bill.status) === 0) {
+              return null;
+            }
             
             const participants = bill.participants || [];
             
@@ -64,20 +67,29 @@ const History = () => {
             }
             
             return {
-              ...bill,
               billId: id,
+              creator: bill.creator,
+              recipient: bill.recipient,
+              name: bill.name,
+              totalAmount: bill.totalAmount,
+              splitType: Number(bill.splitType),
+              deadline: bill.deadline,
+              createdAt: bill.createdAt,
+              status: Number(bill.status),
+              settledAt: bill.settledAt,
               participants,
               userShare,
               userHasPaid,
               isCreator: bill.creator.toLowerCase() === address.toLowerCase()
             };
-          } catch {
+          } catch (error) {
             return null;
           }
         })
       );
 
-      setBills(billsData.filter(Boolean) as Bill[]);
+      const filteredBills = billsData.filter(Boolean) as Bill[];
+      setBills(filteredBills);
     } catch (error) {
       console.error('Error loading bills:', error);
     } finally {
@@ -328,25 +340,26 @@ const History = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-[#324467]">
                     {sortedBills.map((bill, index) => {
-                      const iconInfo = getBillIcon(index);
-                      const iconColorClass = {
-                        orange: 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',
-                        blue: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
-                        purple: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
-                        pink: 'bg-pink-100 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400',
-                        primary: 'bg-primary/10 text-primary'
-                      }[iconInfo.color];
-                      
-                      const participantCount = bill.participants?.length || 0;
-                      const showAvatars = Math.min(participantCount, 2);
-                      const remainingCount = Math.max(0, participantCount - 2);
-                      
-                      return (
-                        <tr key={bill.billId.toString()} className="group hover:bg-slate-50 dark:hover:bg-[#1F2937] transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className={`size-10 rounded-lg ${iconColorClass} flex items-center justify-center`}>
-                                <span className="material-symbols-outlined">{iconInfo.icon}</span>
+                      try {
+                        const iconInfo = getBillIcon(index);
+                        const iconColorClass = {
+                          orange: 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',
+                          blue: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+                          purple: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
+                          pink: 'bg-pink-100 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400',
+                          primary: 'bg-primary/10 text-primary'
+                        }[iconInfo.color];
+                        
+                        const participantCount = bill.participants?.length || 0;
+                        const showAvatars = Math.min(participantCount, 2);
+                        const remainingCount = Math.max(0, participantCount - 2);
+                        
+                        return (
+                          <tr key={bill.billId.toString()} className="group hover:bg-slate-50 dark:hover:bg-[#1F2937] transition-colors">
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className={`size-10 rounded-lg ${iconColorClass} flex items-center justify-center`}>
+                                  <span className="material-symbols-outlined">{iconInfo.icon}</span>
                               </div>
                               <div>
                                 <p className="font-bold text-sm text-slate-900 dark:text-white">{bill.name}</p>
@@ -423,6 +436,9 @@ const History = () => {
                           </td>
                         </tr>
                       );
+                      } catch (error) {
+                        return null;
+                      }
                     })}
                   </tbody>
                 </table>

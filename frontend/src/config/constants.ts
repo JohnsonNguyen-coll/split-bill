@@ -1,6 +1,6 @@
 // Arc Network Configuration
 export const ARC_NETWORK = {
-  chainId: 0x1a2, // Update with actual Arc Testnet Chain ID
+  chainId: 5042002, // Arc Testnet Chain ID (0x4cef52)
   name: 'Arc Testnet',
   rpcUrl: import.meta.env.VITE_ARC_TESTNET_RPC_URL || 'https://rpc.testnet.arc.network',
   nativeCurrency: {

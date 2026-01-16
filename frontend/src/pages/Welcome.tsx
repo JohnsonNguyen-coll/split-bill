@@ -90,13 +90,12 @@ const Welcome = () => {
                       <span className="truncate">Connect Wallet</span>
                     </button>
                   )}
-                  <button className="flex min-w-[140px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 px-6 bg-[#232f48] hover:bg-[#2f3e5c] transition-all border border-[#324467] text-white text-base font-bold leading-normal tracking-[0.015em]">
+                  <a 
+                    href="#why-settle-onchain"
+                    className="flex min-w-[140px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 px-6 bg-[#232f48] hover:bg-[#2f3e5c] transition-all border border-[#324467] text-white text-base font-bold leading-normal tracking-[0.015em]"
+                  >
                     <span className="truncate">Read Docs</span>
-                  </button>
-                </div>
-                <div className="flex items-center gap-2 text-slate-500 text-sm mt-2">
-                  <span className="material-symbols-outlined !text-lg">check_circle</span>
-                  <span>No gas fees for settlements on L2</span>
+                  </a>
                 </div>
               </div>
             </div>
@@ -138,7 +137,7 @@ const Welcome = () => {
       </section>
 
       {/* Features Section */}
-      <section className="flex flex-col py-12 md:py-20">
+      <section id="why-settle-onchain" className="flex flex-col py-12 md:py-20">
         <div className="px-4 md:px-10 lg:px-40 flex flex-1 justify-center">
           <div className="flex flex-col max-w-[1200px] flex-1">
             <div className="flex flex-col gap-10">
@@ -304,20 +303,18 @@ const Welcome = () => {
               </div>
               <div className="flex flex-col gap-3">
                 <h4 className="text-white font-bold text-sm uppercase tracking-wider">Resources</h4>
-                <a href="#docs" className="text-slate-400 hover:text-primary transition-colors text-sm">Documentation</a>
+                <a href="#why-settle-onchain" className="text-slate-400 hover:text-primary transition-colors text-sm">Documentation</a>
                 <a href="#" className="text-slate-400 hover:text-primary transition-colors text-sm">API Reference</a>
                 <a href="#" className="text-slate-400 hover:text-primary transition-colors text-sm">Smart Contract Audit</a>
               </div>
               <div className="flex flex-col gap-3">
                 <h4 className="text-white font-bold text-sm uppercase tracking-wider">Community</h4>
-                <a href="#" className="text-slate-400 hover:text-primary transition-colors text-sm">Discord</a>
-                <a href="#" className="text-slate-400 hover:text-primary transition-colors text-sm">Twitter</a>
-                <a href="#" className="text-slate-400 hover:text-primary transition-colors text-sm">GitHub</a>
+                <a href="https://x.com/Johson_Nguyen" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-primary transition-colors text-sm">Twitter</a>
               </div>
             </div>
           </div>
           <div className="mt-12 pt-8 border-t border-[#232f48] flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-slate-600 text-sm">© 2023 On-chain Bill Splitter. All rights reserved.</p>
+            <p className="text-slate-600 text-sm">© 2026 On-chain Bill Splitter. All rights reserved.</p>
             <div className="flex gap-6">
               <a href="#" className="text-slate-600 hover:text-slate-400 text-sm">Privacy Policy</a>
               <a href="#" className="text-slate-600 hover:text-slate-400 text-sm">Terms of Service</a>

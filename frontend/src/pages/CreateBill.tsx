@@ -19,6 +19,7 @@ const CreateBill = () => {
   const [deadline, setDeadline] = useState('');
   const [recipient, setRecipient] = useState('');
   const [participants, setParticipants] = useState<Participant[]>([]);
+  const [creatorIncluded, setCreatorIncluded] = useState(false); // New state for creator inclusion
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -35,31 +36,31 @@ const CreateBill = () => {
   // Update participant
   const updateParticipant = (index: number, field: 'address' | 'amount', value: string) => {
     const updated = [...participants];
-    updated[index][field] = value;
+    // Trim whitespace for addresses
+    if (field === 'address') {
+      updated[index][field] = value.trim();
+    } else {
+      updated[index][field] = value;
+    }
     setParticipants(updated);
-  };
-
-  // Calculate amounts for equal split
-  const calculateEqualSplit = () => {
-    if (!totalAmount || !participants.length) return {};
-    const total = parseFloat(totalAmount);
-    const perPerson = total / (participants.length + 1); // +1 for creator
-    const remainder = total - perPerson * (participants.length + 1);
-    return { perPerson, remainder };
   };
 
   // Validate and calculate total allocated
   const getTotalAllocated = (): number => {
     if (splitType === 'equal') {
-      const { perPerson, remainder } = calculateEqualSplit();
-      if (perPerson === undefined || remainder === undefined) {
-        return 0;
-      }
-      return perPerson * (participants.length + 1) + remainder;
+      return parseFloat(totalAmount) || 0;
     } else {
-      const creatorAmount = parseFloat(totalAmount) / (participants.length + 1);
+      // Custom split
       const participantsTotal = participants.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-      return creatorAmount + participantsTotal;
+      
+      if (creatorIncluded) {
+        // Creator's amount is auto-calculated by smart contract
+        // Total allocated = participants total + (totalAmount - participants total) = totalAmount
+        return parseFloat(totalAmount) || 0;
+      } else {
+        // Creator not included, return participants total
+        return participantsTotal;
+      }
     }
   };
 
@@ -103,6 +104,14 @@ const CreateBill = () => {
       const totalAmountParsed = parseUSDC(totalAmount);
       const deadlineTimestamp = Math.floor(new Date(deadline).getTime() / 1000);
 
+      // Validate deadline is in the future
+      const currentTimestamp = Math.floor(Date.now() / 1000);
+      if (deadlineTimestamp <= currentTimestamp) {
+        setError('Deadline must be in the future');
+        setLoading(false);
+        return;
+      }
+
       const participantAddresses = participants.map(p => p.address);
       let amounts: bigint[] = [];
 
@@ -110,8 +119,31 @@ const CreateBill = () => {
         // Empty array for equal split
         amounts = [];
       } else {
-        // Custom amounts
+        // Custom amounts - only include participants, NOT creator
+        // Smart contract will automatically calculate creator's amount if creatorIncluded is true
         amounts = participants.map(p => parseUSDC(p.amount));
+      }
+
+      // Validate total for custom split
+      if (splitType === 'custom') {
+        const participantsTotal = participants.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+        
+        if (creatorIncluded) {
+          // Smart contract will auto-calculate creator's amount as: totalAmount - participantsTotal
+          // So we just need to ensure participantsTotal < totalAmount
+          if (participantsTotal >= parseFloat(totalAmount)) {
+            setError(`Participants' total (${participantsTotal.toFixed(2)}) must be less than bill total (${totalAmount}) to leave room for creator's share`);
+            setLoading(false);
+            return;
+          }
+        } else {
+          // Creator not included, so participants must equal total
+          if (Math.abs(participantsTotal - parseFloat(totalAmount)) > 0.01) {
+            setError(`Total allocated (${participantsTotal.toFixed(2)}) doesn't match bill total (${totalAmount})`);
+            setLoading(false);
+            return;
+          }
+        }
       }
 
       // Add creator as recipient if not specified
@@ -123,7 +155,8 @@ const CreateBill = () => {
         recipientAddress,
         participantAddresses,
         amounts,
-        deadlineTimestamp
+        deadlineTimestamp,
+        creatorIncluded // Pass the new parameter
       );
 
       // Get receipt from tx.wait() which already returns the receipt
@@ -146,7 +179,13 @@ const CreateBill = () => {
       }
     } catch (err: any) {
       console.error('Error creating bill:', err);
-      setError(err.message || 'Failed to create bill');
+      
+      // Check if user rejected the transaction
+      if (err.code === 'ACTION_REJECTED' || err.code === 4001 || err.message?.includes('user rejected')) {
+        setError('Transaction cancelled by user');
+      } else {
+        setError(err.message || 'Failed to create bill');
+      }
     } finally {
       setLoading(false);
     }
@@ -230,7 +269,8 @@ const CreateBill = () => {
                   type="datetime-local"
                   value={deadline}
                   onChange={(e) => setDeadline(e.target.value)}
-                  className="flex w-full rounded-lg text-slate-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-slate-200 dark:border-[#324467] bg-slate-50 dark:bg-[#111722] focus:border-primary h-12 px-4 text-base font-normal transition-all"
+                  min={new Date(Date.now() + 60000).toISOString().slice(0, 16)} // At least 1 minute in the future
+                  className="flex w-full rounded-lg text-slate-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-slate-200 dark:border-[#324467] bg-slate-50 dark:bg-[#111722] focus:border-primary h-12 px-4 text-base font-normal transition-all [color-scheme:dark]"
                   required
                 />
               </label>
@@ -265,6 +305,35 @@ const CreateBill = () => {
               </div>
             </div>
 
+            {/* Creator Inclusion Option */}
+            <div className="mb-6">
+              <label className="flex items-center gap-3 p-4 bg-slate-50 dark:bg-[#111722] border-2 border-slate-200 dark:border-[#324467] rounded-lg cursor-pointer group hover:border-primary dark:hover:border-primary transition-all">
+                <div className="relative flex items-center flex-shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={creatorIncluded}
+                    onChange={(e) => setCreatorIncluded(e.target.checked)}
+                    className="peer h-5 w-5 cursor-pointer appearance-none rounded border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-[#192233] checked:bg-primary checked:border-primary transition-all"
+                  />
+                  <span className="absolute left-[3px] top-[3px] text-white opacity-0 peer-checked:opacity-100 pointer-events-none">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-slate-900 dark:text-white text-sm font-medium">
+                    Include me in payment
+                  </span>
+                  <span className="text-slate-500 dark:text-[#92a4c9] text-xs">
+                    {creatorIncluded 
+                      ? "You'll pay your share along with other participants" 
+                      : "You're just collecting - won't pay, only receive"}
+                  </span>
+                </div>
+              </label>
+            </div>
+
             {/* Participants */}
             <div className="flex flex-col gap-4 mb-8">
               <div className="flex items-center justify-between">
@@ -288,9 +357,9 @@ const CreateBill = () => {
                   <div className="col-span-1 text-right">Action</div>
                 </div>
 
-                {/* Creator Row */}
-                {address && (
-                  <div className="flex flex-col md:grid md:grid-cols-12 gap-3 md:gap-4 px-4 py-4 md:items-center border-b border-slate-200 dark:border-[#324467] last:border-0">
+                {/* Creator Row - Only show if included */}
+                {address && creatorIncluded && (
+                  <div className="flex flex-col md:grid md:grid-cols-12 gap-3 md:gap-4 px-4 py-4 md:items-center border-b border-slate-200 dark:border-[#324467] last:border-0 bg-blue-50/50 dark:bg-blue-900/5">
                     <div className="col-span-6 flex flex-col gap-1">
                       <span className="md:hidden text-xs text-slate-500 dark:text-[#92a4c9] font-medium">Wallet</span>
                       <div className="flex items-center gap-2">
@@ -306,9 +375,14 @@ const CreateBill = () => {
                       <div className="relative">
                         <input
                           type="text"
-                          value={splitType === 'equal' ? (totalAllocated / (participants.length + 1)).toFixed(2) : ''}
+                          value={splitType === 'equal' && totalAmount && participants.length > 0 
+                            ? (parseFloat(totalAmount) / (participants.length + 1)).toFixed(2) 
+                            : splitType === 'custom' && totalAmount && participants.length > 0
+                              ? (parseFloat(totalAmount) - participants.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)).toFixed(2)
+                              : '0.00'}
                           readOnly
-                          className="w-full bg-white dark:bg-[#192233] border border-slate-200 dark:border-[#324467] rounded text-slate-900 dark:text-white text-sm px-3 py-2 focus:ring-1 focus:ring-primary focus:border-primary"
+                          placeholder="Auto"
+                          className="w-full bg-slate-100 dark:bg-[#192233] border border-slate-200 dark:border-[#324467] rounded text-slate-500 dark:text-[#92a4c9] text-sm px-3 py-2"
                         />
                       </div>
                     </div>
@@ -317,15 +391,19 @@ const CreateBill = () => {
                       <div className="relative">
                         <input
                           type="text"
-                          value={`${(100 / (participants.length + 1)).toFixed(0)}%`}
+                          value={splitType === 'equal' && participants.length > 0 
+                            ? `${(100 / (participants.length + 1)).toFixed(0)}%` 
+                            : splitType === 'custom' && totalAmount && participants.length > 0
+                              ? `${(((parseFloat(totalAmount) - participants.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)) / parseFloat(totalAmount)) * 100).toFixed(0)}%`
+                              : '0%'}
                           readOnly
                           className="w-full bg-slate-100 dark:bg-[#192233] border border-slate-200 dark:border-[#324467] rounded text-slate-500 dark:text-[#92a4c9] text-sm px-3 py-2"
                         />
                       </div>
                     </div>
                     <div className="col-span-1 flex items-center justify-end">
-                      <span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-[#232f48] px-2 py-1 text-xs font-medium text-slate-600 dark:text-slate-400 ring-1 ring-inset ring-slate-500/10">
-                        Owner
+                      <span className="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900/30 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 ring-1 ring-inset ring-blue-500/20">
+                        Paying
                       </span>
                     </div>
                   </div>
@@ -365,7 +443,9 @@ const CreateBill = () => {
                       <div className="relative">
                         <input
                           type="text"
-                          value={`${(100 / (participants.length + 1)).toFixed(0)}%`}
+                          value={participants.length > 0 
+                            ? `${(100 / (creatorIncluded ? participants.length + 1 : participants.length)).toFixed(0)}%` 
+                            : '0%'}
                           readOnly
                           className="w-full bg-slate-100 dark:bg-[#192233] border border-slate-200 dark:border-[#324467] rounded text-slate-500 dark:text-[#92a4c9] text-sm px-3 py-2"
                         />

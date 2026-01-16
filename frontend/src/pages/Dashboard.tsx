@@ -14,7 +14,7 @@ interface Bill {
   splitType: number;
   deadline: bigint;
   createdAt: bigint;
-  status: number; // 0: ACTIVE, 1: SETTLED, 2: CANCELLED
+  status: number; // 0: ACTIVE, 1: SETTLED, 2: CANCELLED (converted to number)
   settledAt: bigint;
   participants: any[];
   userShare?: bigint;
@@ -28,12 +28,26 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'action' | 'pending' | 'settled'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [wrongNetwork, setWrongNetwork] = useState(false);
 
   useEffect(() => {
     if (isConnected && address) {
+      checkNetwork();
       loadBills();
     }
   }, [isConnected, address]);
+
+  const checkNetwork = async () => {
+    try {
+      if (window.ethereum) {
+        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+        const currentChainId = parseInt(chainId, 16);
+        setWrongNetwork(currentChainId !== 5042002);
+      }
+    } catch (error) {
+      console.error('Error checking network:', error);
+    }
+  };
 
   const loadBills = async () => {
     if (!address || !CONTRACT_ADDRESSES.BillSplitter) return;
@@ -61,8 +75,16 @@ const Dashboard = () => {
             }
             
             return {
-              ...bill,
               billId: id,
+              creator: bill.creator,
+              recipient: bill.recipient,
+              name: bill.name,
+              totalAmount: bill.totalAmount,
+              splitType: Number(bill.splitType),
+              deadline: bill.deadline,
+              createdAt: bill.createdAt,
+              status: Number(bill.status),
+              settledAt: bill.settledAt,
               participants,
               userShare,
               userHasPaid,
@@ -85,14 +107,18 @@ const Dashboard = () => {
   // Calculate stats
   const calculateStats = () => {
     const activeBills = bills.filter(b => b.status === 0);
+    
+    // Receivable: bills where user is creator but NOT a participant (userShare = 0)
     const receivable = bills
-      .filter(b => b.isCreator && b.status === 0)
+      .filter(b => b.isCreator && b.status === 0 && (!b.userShare || b.userShare === 0n))
       .reduce((sum, b) => {
         const amount = b.totalAmount != null ? Number(b.totalAmount) : 0;
         return sum + (Number.isNaN(amount) ? 0 : amount);
       }, 0);
+    
+    // Payable: any bill where user has a share and hasn't paid (including creator if they're a participant)
     const payable = bills
-      .filter(b => !b.isCreator && b.status === 0 && !b.userHasPaid)
+      .filter(b => b.status === 0 && b.userShare && b.userShare > 0n && !b.userHasPaid)
       .reduce((sum, b) => {
         const amount = b.userShare != null ? Number(b.userShare) : 0;
         return sum + (Number.isNaN(amount) ? 0 : amount);
@@ -129,7 +155,10 @@ const Dashboard = () => {
     }
     
     if (bill.status === 0) {
-      if (!bill.isCreator && !bill.userHasPaid) {
+      // Check if user needs to pay (including creator if they're a participant)
+      const needsToPay = bill.userShare && bill.userShare > 0n && !bill.userHasPaid;
+      
+      if (needsToPay) {
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50">
             <span className="size-1.5 rounded-full bg-amber-500"></span>
@@ -159,8 +188,10 @@ const Dashboard = () => {
     // Status filter
     if (filter === 'all') return true;
     if (filter === 'settled') return bill.status === 1;
-    if (filter === 'action') return bill.status === 0 && !bill.isCreator && !bill.userHasPaid;
-    if (filter === 'pending') return bill.status === 0 && (bill.isCreator || bill.userHasPaid);
+    // Action required: user has a share and hasn't paid yet (including creator if they're a participant)
+    if (filter === 'action') return bill.status === 0 && bill.userShare && bill.userShare > 0n && !bill.userHasPaid;
+    // Pending: user has paid or is just collecting (creator without share)
+    if (filter === 'pending') return bill.status === 0 && (!bill.userShare || bill.userShare === 0n || bill.userHasPaid);
     
     return true;
   });
@@ -185,6 +216,52 @@ const Dashboard = () => {
       <Navbar />
       <main className="flex-1 flex justify-center py-8 px-4 sm:px-6 lg:px-10">
         <div className="w-full max-w-[1200px] flex flex-col gap-8">
+          {/* Wrong Network Warning */}
+          {wrongNetwork && (
+            <div className="rounded-xl p-6 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800">
+              <div className="flex items-start gap-4">
+                <span className="material-symbols-outlined text-red-600 dark:text-red-400 text-3xl">error</span>
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-red-900 dark:text-red-100 mb-2">Wrong Network</h3>
+                  <p className="text-sm text-red-700 dark:text-red-300 mb-4">
+                    You're connected to the wrong network. Please switch to Arc Testnet (Chain ID: 5042002) to view your bills.
+                  </p>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await window.ethereum.request({
+                          method: 'wallet_switchEthereumChain',
+                          params: [{ chainId: '0x4cef52' }], // 5042002 in hex
+                        });
+                      } catch (error: any) {
+                        if (error.code === 4902) {
+                          // Network not added, add it
+                          await window.ethereum.request({
+                            method: 'wallet_addEthereumChain',
+                            params: [{
+                              chainId: '0x4cef52',
+                              chainName: 'Arc Testnet',
+                              rpcUrls: ['https://rpc.testnet.arc.network'],
+                              nativeCurrency: {
+                                name: 'USDC',
+                                symbol: 'USDC',
+                                decimals: 6,
+                              },
+                            }],
+                          });
+                        }
+                      }
+                    }}
+                    className="inline-flex items-center gap-2 rounded-lg h-10 px-6 bg-red-600 hover:bg-red-700 text-white text-sm font-bold transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">swap_horiz</span>
+                    Switch to Arc Testnet
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
             <div className="flex flex-col gap-1">
@@ -230,7 +307,7 @@ const Dashboard = () => {
                 </p>
                 <p className="text-xs text-slate-400 mt-1">
                   {(() => {
-                    const count = bills.filter(b => !b.isCreator && b.status === 0 && !b.userHasPaid).length;
+                    const count = bills.filter(b => b.status === 0 && b.userShare && b.userShare > 0n && !b.userHasPaid).length;
                     return `${count} bill${count !== 1 ? 's' : ''} requires attention`;
                   })()}
                 </p>
@@ -406,16 +483,17 @@ const Dashboard = () => {
                               if (!bill.userShare || bill.userShare === 0n) {
                                 return <span className="text-slate-400">-</span>;
                               }
-                              if (bill.isCreator) {
-                                return (
-                                  <span className="text-emerald-600 dark:text-emerald-400">
-                                    + {formatUSDC(bill.userShare)} USDC
-                                  </span>
-                                );
-                              }
                               if (bill.userHasPaid) {
                                 return (
                                   <span className="text-slate-400 line-through">
+                                    {formatUSDC(bill.userShare)} USDC
+                                  </span>
+                                );
+                              }
+                              // If creator has a share (creatorIncluded), show as payable, not receivable
+                              if (bill.isCreator && bill.userShare > 0n) {
+                                return (
+                                  <span className="text-slate-900 dark:text-white">
                                     {formatUSDC(bill.userShare)} USDC
                                   </span>
                                 );
@@ -432,7 +510,8 @@ const Dashboard = () => {
                           </td>
                           <td className="px-6 py-4 text-right">
                             {(() => {
-                              if (bill.status === 0 && !bill.isCreator && !bill.userHasPaid) {
+                              // Show "Settle Now" if user has a share and hasn't paid (including creator if they're a participant)
+                              if (bill.status === 0 && bill.userShare && bill.userShare > 0n && !bill.userHasPaid) {
                                 return (
                                   <Link
                                     to={`/bill/${bill.billId.toString()}`}

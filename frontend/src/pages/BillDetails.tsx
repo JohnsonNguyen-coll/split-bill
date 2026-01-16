@@ -47,6 +47,8 @@ const BillDetails = () => {
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [userParticipant, setUserParticipant] = useState<Participant | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (billId) {
@@ -59,6 +61,7 @@ const BillDetails = () => {
 
     try {
       setLoading(true);
+      setError(null);
       const contract = getBillSplitterContractReadOnly();
       const billData = await contract.getBill(billId);
       setBill(billData);
@@ -67,12 +70,12 @@ const BillDetails = () => {
         try {
           const participant = await contract.getParticipantInfo(billId, address);
           setUserParticipant(participant);
-        } catch {
+        } catch (error) {
           setUserParticipant(null);
         }
       }
-    } catch (error) {
-      console.error('Error loading bill:', error);
+    } catch (error: any) {
+      setError(error.message || 'Failed to load bill');
     } finally {
       setLoading(false);
     }
@@ -101,10 +104,19 @@ const BillDetails = () => {
 
       // Reload bill
       await loadBill();
-      alert('Payment successful!');
+      setSuccessMessage('Payment successful! 🎉');
+      setTimeout(() => setSuccessMessage(null), 5000);
     } catch (error: any) {
       console.error('Error paying share:', error);
-      alert(error.message || 'Failed to pay share');
+      
+      // Check if user rejected the transaction
+      if (error.code === 'ACTION_REJECTED' || error.code === 4001 || error.message?.includes('user rejected')) {
+        setError('Transaction cancelled by user');
+      } else {
+        setError(error.message || 'Failed to pay share');
+      }
+      
+      setTimeout(() => setError(null), 5000);
     } finally {
       setPaying(false);
     }
@@ -113,7 +125,8 @@ const BillDetails = () => {
   const copyBillLink = () => {
     const link = `${globalThis.location.origin}/invite/${billId}`;
     navigator.clipboard.writeText(link);
-    alert('Bill link copied to clipboard!');
+    setSuccessMessage('Bill link copied to clipboard! 📋');
+    setTimeout(() => setSuccessMessage(null), 3000);
   };
 
   if (loading) {
@@ -122,6 +135,20 @@ const BillDetails = () => {
         <Navbar />
         <main className="flex-1 flex items-center justify-center">
           <p className="text-slate-500 dark:text-slate-400">Loading bill details...</p>
+        </main>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-background-light dark:bg-background-dark min-h-screen flex flex-col">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>
+            <Link to="/dashboard" className="text-primary hover:underline">Back to Dashboard</Link>
+          </div>
         </main>
       </div>
     );
@@ -142,13 +169,16 @@ const BillDetails = () => {
   }
 
   const isCreator = bill.creator.toLowerCase() === address?.toLowerCase();
-  const canPay = userParticipant && !userParticipant.hasPaid && bill.status === 0;
 
-  // Calculate collected amount
-  const collectedAmount = bill.participants.reduce((sum, p) => {
-    const amount = p.amount != null ? Number(p.amount) : 0;
-    return sum + (p.hasPaid && !Number.isNaN(amount) ? amount : 0);
-  }, 0);
+  const collectedAmount = bill.participants?.reduce((sum, p) => {
+    try {
+      const amount = p.amount != null ? Number(p.amount) : 0;
+      return sum + (p.hasPaid && !Number.isNaN(amount) ? amount : 0);
+    } catch {
+      return sum;
+    }
+  }, 0) || 0;
+  
   const collectedPercentage = bill.totalAmount > 0n && !Number.isNaN(collectedAmount) ? (collectedAmount / Number(bill.totalAmount)) * 100 : 0;
   const userShare = userParticipant && userParticipant.amount != null ? Number(userParticipant.amount) : 0;
 
@@ -159,9 +189,29 @@ const BillDetails = () => {
   return (
     <div className="bg-background-light dark:bg-background-dark min-h-screen flex flex-col">
       <Navbar />
+      
+      {/* Success Toast */}
+      {successMessage && (
+        <div className="fixed top-4 right-4 z-50 animate-slide-in-right">
+          <div className="flex items-center gap-3 rounded-lg p-4 bg-emerald-500 text-white shadow-lg max-w-md">
+            <span className="material-symbols-outlined text-2xl">check_circle</span>
+            <p className="font-medium">{successMessage}</p>
+          </div>
+        </div>
+      )}
+      
+      {/* Error Toast */}
+      {error && (
+        <div className="fixed top-4 right-4 z-50 animate-slide-in-right">
+          <div className="flex items-center gap-3 rounded-lg p-4 bg-red-500 text-white shadow-lg max-w-md">
+            <span className="material-symbols-outlined text-2xl">error</span>
+            <p className="font-medium">{error}</p>
+          </div>
+        </div>
+      )}
+      
       <main className="flex-1 flex justify-center py-8 px-4 sm:px-6 lg:px-10">
-        <div className="w-full max-w-[1200px] flex flex-col gap-8">
-          {/* Breadcrumbs */}
+        <div className="w-full max-w-[1200px] flex flex-col gap-8">{/* Breadcrumbs */}
           <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
             <button
               onClick={() => navigate('/dashboard')}
@@ -187,12 +237,12 @@ const BillDetails = () => {
                 <h1 className="text-3xl md:text-4xl font-black tracking-tight text-slate-900 dark:text-white">
                   {bill.name}
                 </h1>
-                {bill.status === 0 && (
+                {Number(bill.status) === 0 && (
                   <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50">
                     OPEN
                   </span>
                 )}
-                {bill.status === 1 && (
+                {Number(bill.status) === 1 && (
                   <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                     SETTLED
                   </span>
@@ -205,22 +255,13 @@ const BillDetails = () => {
               </div>
             </div>
             {isCreator && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => navigate(`/bill/${billId}/edit`)}
-                  className="flex items-center gap-2 rounded-lg h-10 px-4 bg-white dark:bg-[#192233] border border-slate-200 dark:border-[#324467] text-slate-900 dark:text-white text-sm font-bold hover:bg-slate-50 dark:hover:bg-[#232f48] transition-colors"
-                >
-                  <span className="material-symbols-outlined text-[18px]">edit</span>
-                  Edit Bill
-                </button>
-                <button
-                  onClick={copyBillLink}
-                  className="flex items-center gap-2 rounded-lg h-10 px-4 bg-white dark:bg-[#192233] border border-slate-200 dark:border-[#324467] text-slate-900 dark:text-white text-sm font-bold hover:bg-slate-50 dark:hover:bg-[#232f48] transition-colors"
-                >
-                  <span className="material-symbols-outlined text-[18px]">share</span>
-                  Invite
-                </button>
-              </div>
+              <button
+                onClick={copyBillLink}
+                className="flex items-center gap-2 rounded-lg h-10 px-4 bg-white dark:bg-[#192233] border border-slate-200 dark:border-[#324467] text-slate-900 dark:text-white text-sm font-bold hover:bg-slate-50 dark:hover:bg-[#232f48] transition-colors"
+              >
+                <span className="material-symbols-outlined text-[18px]">share</span>
+                Invite
+              </button>
             )}
           </div>
 
@@ -277,7 +318,7 @@ const BillDetails = () => {
           </div>
 
           {/* Payment CTA Banner */}
-          {canPay && (
+          {userParticipant && !userParticipant.hasPaid && Number(bill.status) === 0 && (
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-xl p-6 bg-primary/10 dark:bg-primary/20 border border-primary/20">
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
@@ -304,7 +345,7 @@ const BillDetails = () => {
           <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-[#324467] bg-white dark:bg-[#192233] shadow-sm">
             <div className="px-6 py-4 border-b border-slate-200 dark:border-[#324467] flex items-center justify-between">
               <h3 className="text-slate-900 dark:text-white text-lg font-bold">Participants</h3>
-              <span className="text-sm text-slate-500 dark:text-slate-400">{bill.participants.length} people</span>
+              <span className="text-sm text-slate-500 dark:text-slate-400">{bill.participants?.length || 0} people</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[600px]">
@@ -317,24 +358,25 @@ const BillDetails = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-[#324467]">
-                  {bill.participants.map((participant: Participant, index: number) => {
-                    const isUser = participant.wallet.toLowerCase() === address?.toLowerCase();
-                    const avatarColors = ['bg-blue-500', 'bg-orange-500', 'bg-green-500', 'bg-purple-500', 'bg-pink-500'];
-                    const avatarColor = avatarColors[index % avatarColors.length];
-                    
-                    return (
-                      <tr key={`${participant.wallet}-${index}`} className="group hover:bg-slate-50 dark:hover:bg-[#1F2937] transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className={`size-10 rounded-full ${avatarColor} flex items-center justify-center text-white text-sm font-bold`}>
+                  {bill.participants?.map((participant: Participant, index: number) => {
+                    try {
+                      const isUser = participant.wallet?.toLowerCase() === address?.toLowerCase();
+                      const avatarColors = ['bg-blue-500', 'bg-orange-500', 'bg-green-500', 'bg-purple-500', 'bg-pink-500'];
+                      const avatarColor = avatarColors[index % avatarColors.length];
+                      
+                      return (
+                        <tr key={`${participant.wallet}-${index}`} className="group hover:bg-slate-50 dark:hover:bg-[#1F2937] transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className={`size-10 rounded-full ${avatarColor} flex items-center justify-center text-white text-sm font-bold`}>
                               {isUser ? 'ME' : participant.wallet.slice(2, 4).toUpperCase()}
                             </div>
                             <div className="flex flex-col">
                               <span className="text-sm font-medium text-slate-900 dark:text-white">
                                 {isUser ? 'You' : formatAddress(participant.wallet)}
                               </span>
-                              {isCreator && isUser && (
-                                <span className="text-xs text-slate-500 dark:text-slate-400">Host</span>
+                              {participant.wallet.toLowerCase() === bill.creator.toLowerCase() && (
+                                <span className="text-xs text-slate-500 dark:text-slate-400">Creator</span>
                               )}
                             </div>
                           </div>
@@ -356,7 +398,7 @@ const BillDetails = () => {
                           )}
                         </td>
                         <td className="px-6 py-4 text-right">
-                          {isUser && !participant.hasPaid && canPay ? (
+                          {isUser && !participant.hasPaid && Number(bill.status) === 0 ? (
                             <button
                               onClick={handlePayShare}
                               disabled={paying}
@@ -375,6 +417,10 @@ const BillDetails = () => {
                         </td>
                       </tr>
                     );
+                    } catch (error) {
+                      console.error('Error rendering participant:', error);
+                      return null;
+                    }
                   })}
                 </tbody>
               </table>
@@ -402,7 +448,7 @@ const BillDetails = () => {
               </div>
 
               {/* Payment Activities */}
-              {bill.participants
+              {[...bill.participants]
                 .filter(p => p.hasPaid && p.paidAt > 0n)
                 .sort((a, b) => Number(b.paidAt) - Number(a.paidAt))
                 .map((participant, index) => {
