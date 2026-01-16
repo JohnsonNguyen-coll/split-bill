@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { useWallet } from '../contexts/WalletContext';
-import { getBillSplitterContractReadOnly, getBillSplitterContract, getUSDCContract, formatUSDC, formatAddress, parseUSDC } from '../utils/web3';
+import { getBillSplitterContractReadOnly, getBillSplitterContract, getUSDCContract, formatUSDC } from '../utils/web3';
 import { CONTRACT_ADDRESSES } from '../config/constants';
 
 const InvitePage = () => {
   const { billId } = useParams<{ billId: string }>();
-  const navigate = useNavigate();
   const { address, isConnected, connect } = useWallet();
   const [amountOwed, setAmountOwed] = useState<bigint | null>(null);
   const [hasPaid, setHasPaid] = useState(false);

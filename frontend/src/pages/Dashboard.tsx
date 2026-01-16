@@ -229,12 +229,13 @@ const Dashboard = () => {
                   <button
                     onClick={async () => {
                       try {
+                        if (!window.ethereum) return;
                         await window.ethereum.request({
                           method: 'wallet_switchEthereumChain',
                           params: [{ chainId: '0x4cef52' }], // 5042002 in hex
                         });
                       } catch (error: any) {
-                        if (error.code === 4902) {
+                        if (error.code === 4902 && window.ethereum) {
                           // Network not added, add it
                           await window.ethereum.request({
                             method: 'wallet_addEthereumChain',
