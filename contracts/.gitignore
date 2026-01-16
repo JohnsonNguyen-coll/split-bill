@@ -1,0 +1,24 @@
+# Foundry
+out/
+cache/
+broadcast/
+lib/
+*.sol
+
+# Environment
+.env
+
+# IDE
+.idea/
+.vscode/
+
+
+
+
+
+
+
+
+
+
+
