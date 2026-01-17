@@ -291,7 +291,7 @@ const Welcome = () => {
                 <span className="text-lg font-bold">On-chain Splitter</span>
               </div>
               <p className="text-slate-500 text-sm">
-                The decentralized way to manage shared expenses. Built on Ethereum for transparency and trust.
+                The decentralized way to manage shared expenses. Built on Arc for transparency and trust.
               </p>
             </div>
             <div className="flex flex-wrap gap-12">
@@ -305,7 +305,7 @@ const Welcome = () => {
                 <h4 className="text-white font-bold text-sm uppercase tracking-wider">Resources</h4>
                 <a href="#why-settle-onchain" className="text-slate-400 hover:text-primary transition-colors text-sm">Documentation</a>
                 <a href="#" className="text-slate-400 hover:text-primary transition-colors text-sm">API Reference</a>
-                <a href="#" className="text-slate-400 hover:text-primary transition-colors text-sm">Smart Contract Audit</a>
+                <a href="https://testnet.arcscan.app./address/0x1B09bAe12B49d163C391D37474a701BCF4E1F82b?tab=index" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-primary transition-colors text-sm">Smart Contract Audit</a>
               </div>
               <div className="flex flex-col gap-3">
                 <h4 className="text-white font-bold text-sm uppercase tracking-wider">Community</h4>

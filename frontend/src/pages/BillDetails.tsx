@@ -409,7 +409,7 @@ const BillDetails = () => {
                           ) : (
                             <button
                               className="text-slate-400 hover:text-primary dark:hover:text-white transition-colors p-1"
-                              onClick={() => window.open(`https://etherscan.io/address/${participant.wallet}`, '_blank')}
+                              onClick={() => window.open(`https://testnet.arcscan.app./address/${participant.wallet}`, '_blank')}
                             >
                               <span className="material-symbols-outlined text-[20px]">open_in_new</span>
                             </button>
