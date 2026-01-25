@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useWallet } from '../contexts/WalletContext';
+import { useWallet } from '../hooks/useWallet';
 
 const Welcome = () => {
   const { isConnected, connect } = useWallet();

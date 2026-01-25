@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { useWallet } from '../contexts/WalletContext';
+import { useWallet } from '../hooks/useWallet';
 import { getBillSplitterContract, parseUSDC, formatAddress } from '../utils/web3';
 import { ethers } from 'ethers';
 

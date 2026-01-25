@@ -1,19 +1,9 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useWallet } from '../contexts/WalletContext';
-import { formatAddress } from '../utils/web3';
+import { WalletConnectButton } from './ConnectButton';
 
 const Navbar = () => {
-  const { address, isConnected, connect, disconnect } = useWallet();
   const navigate = useNavigate();
   const location = useLocation();
-
-  const handleConnect = async () => {
-    try {
-      await connect();
-    } catch (error: any) {
-      alert(error.message || 'Failed to connect wallet');
-    }
-  };
 
   // Helper function to check if link is active
   const isActive = (path: string) => location.pathname === path;
@@ -57,29 +47,7 @@ const Navbar = () => {
               Arc Testnet
             </span>
           </div>
-          {isConnected && address ? (
-            <div className="flex items-center gap-2">
-              <div className="hidden md:flex items-center gap-2 text-sm text-slate-500 dark:text-[#92a4c9]">
-                <span className="material-symbols-outlined text-[20px]">account_circle</span>
-                <span>{formatAddress(address)}</span>
-              </div>
-              <button
-                onClick={disconnect}
-                className="flex items-center gap-2 cursor-pointer overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold shadow-md hover:bg-blue-600 transition-colors"
-              >
-                <span className="material-symbols-outlined text-[20px]">wallet</span>
-                <span className="truncate max-w-[100px]">{formatAddress(address)}</span>
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={handleConnect}
-              className="flex items-center gap-2 cursor-pointer overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold shadow-md hover:bg-blue-600 transition-colors"
-            >
-              <span className="material-symbols-outlined text-[20px]">wallet</span>
-              <span className="truncate">Connect Wallet</span>
-            </button>
-          )}
+          <WalletConnectButton />
         </div>
       </div>
     </header>

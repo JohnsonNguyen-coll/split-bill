@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { useWallet } from '../contexts/WalletContext';
+import { useWallet } from '../hooks/useWallet';
 import { getBillSplitterContractReadOnly, getBillSplitterContract, getUSDCContract, formatUSDC } from '../utils/web3';
 import { CONTRACT_ADDRESSES } from '../config/constants';
 
